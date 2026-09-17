@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
 fun Dashboard() {
     val ctx = LocalContext.current
     var tick by remember { mutableStateOf(0L) }
+    var statusMsg by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -112,16 +114,7 @@ fun Dashboard() {
 
             Button(
                 onClick = {
-                    try {
-                        val i = ctx.packageManager
-                            .getLaunchIntentForPackage("com.dts.freefireth")
-                            ?: ctx.packageManager
-                                .getLaunchIntentForPackage("com.dts.freefiremax")
-                        if (i != null) {
-                            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            ctx.startActivity(i)
-                        }
-                    } catch (_: Exception) { }
+                    statusMsg = launchFreeFire(ctx)
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(14.dp),
@@ -146,6 +139,15 @@ fun Dashboard() {
                         fontSize = 16.sp
                     )
                 }
+            }
+
+            if (statusMsg.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    statusMsg,
+                    color = Color(0xFFFFC107),
+                    fontSize = 13.sp
+                )
             }
 
             Spacer(Modifier.height(12.dp))
@@ -185,6 +187,52 @@ private fun InfoRow(label: String, value: String) {
         Text(value, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
     }
 }
+
+// ============ FREE FIRE LAUNCHER (all known packages) ============
+
+fun launchFreeFire(ctx: Context): String {
+    val pm: PackageManager = ctx.packageManager
+
+    val candidates = listOf(
+        "com.dts.freefireth",
+        "com.dts.freefiremax",
+        "com.garena.game.kgth",
+        "com.garena.game.kgvn",
+        "com.dts.freefire"
+    )
+
+    for (pkg in candidates) {
+        try {
+            val intent = pm.getLaunchIntentForPackage(pkg)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ctx.startActivity(intent)
+                return "Opening: $pkg"
+            }
+        } catch (_: Exception) { }
+    }
+
+    // Fallback: search all installed apps for Free Fire
+    try {
+        val all = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        for (app in all) {
+            val name = app.packageName.lowercase()
+            if (name.contains("freefire") || name.contains("dts.ff") ||
+                name.contains("garena") && name.contains("ff")) {
+                val intent = pm.getLaunchIntentForPackage(app.packageName)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    ctx.startActivity(intent)
+                    return "Opening: ${app.packageName}"
+                }
+            }
+        }
+    } catch (_: Exception) { }
+
+    return "Free Fire not found. Verify it is installed."
+}
+
+// ============ DATA ============
 
 data class DevInfo(
     val model: String, val android: String, val sdk: Int,
